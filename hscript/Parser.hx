@@ -34,6 +34,7 @@ enum Token {
 	TBrOpen;
 	TBrClose;
 	TDot;
+	TQuestionDot;
 	TComma;
 	TSemicolon;
 	TBkOpen;
@@ -50,13 +51,8 @@ class Parser {
 	public var line : Int;
 	public var opChars : String;
 	public var identChars : String;
-	#if haxe3
 	public var opPriority : Map<String,Int>;
 	public var opRightAssoc : Map<String,Bool>;
-	#else
-	public var opPriority : Hash<Int>;
-	public var opRightAssoc : Hash<Bool>;
-	#end
 
 	/**
 		allows to check for #if / #else in code
@@ -86,6 +82,8 @@ class Parser {
 	// implementation
 	var input : String;
 	var readPos : Int;
+	var offset : Int;
+	var currentPos(get,never) : Int;
 
 	var char : Int;
 	var ops : Array<Bool>;
@@ -103,12 +101,7 @@ class Parser {
 	static inline var p1 = 0;
 	static inline var tokenMin = 0;
 	static inline var tokenMax = 0;
-	#if haxe3
 	var tokens : haxe.ds.GenericStack<Token>;
-	#else
-	var tokens : haxe.FastList<Token>;
-	#end
-
 	#end
 
 
@@ -129,13 +122,8 @@ class Parser {
 			["=","+=","-=","*=","/=","%=","<<=",">>=",">>>=","|=","&=","^=","=>"],
 			["->"]
 		];
-		#if haxe3
 		opPriority = new Map();
 		opRightAssoc = new Map();
-		#else
-		opPriority = new Hash();
-		opRightAssoc = new Hash();
-		#end
 		for( i in 0...priorities.length )
 			for( x in priorities[i] ) {
 				opPriority.set(x, i);
@@ -144,6 +132,8 @@ class Parser {
 		for( x in ["!", "++", "--", "~"] ) // unary "-" handled in parser directly!
 			opPriority.set(x, x == "++" || x == "--" ? -1 : -2);
 	}
+
+	inline function get_currentPos() return readPos + offset;
 
 	public inline function error( err, pmin, pmax ) {
 		if( !resumeErrors )
@@ -158,20 +148,19 @@ class Parser {
 		error(EInvalidChar(c), readPos-1, readPos-1);
 	}
 
-	function initParser( origin ) {
+	function initParser( origin, pos ) {
 		// line=1 - don't reset line : it might be set manualy
 		preprocStack = [];
 		#if hscriptPos
 		this.origin = origin;
 		readPos = 0;
-		tokenMin = oldTokenMin = 0;
-		tokenMax = oldTokenMax = 0;
+		tokenMin = oldTokenMin = pos;
+		tokenMax = oldTokenMax = pos;
 		tokens = new List();
-		#elseif haxe3
-		tokens = new haxe.ds.GenericStack<Token>();
 		#else
-		tokens = new haxe.FastList<Token>();
+		tokens = new haxe.ds.GenericStack<Token>();
 		#end
+		offset = pos;
 		char = -1;
 		ops = new Array();
 		idents = new Array();
@@ -182,8 +171,8 @@ class Parser {
 			idents[identChars.charCodeAt(i)] = true;
 	}
 
-	public function parseString( s : String, ?origin : String = "hscript" ) {
-		initParser(origin);
+	public function parseString( s : String, ?origin : String = "hscript", ?position : Int = 0 ) {
+		initParser(origin, position);
 		input = s;
 		readPos = 0;
 		var a = new Array();
@@ -459,12 +448,21 @@ class Parser {
 		case TBkOpen:
 			var a = new Array();
 			tk = token();
+			var first = true;
 			while( tk != TBkClose && (!resumeErrors || tk != TEof) ) {
+				if (!first) {
+					if (tk != TComma)
+						unexpected(tk);
+					else {
+						tk = token();
+						if (tk == TBkClose)
+							break;
+					}
+				}
+				first = false;
 				push(tk);
 				a.push(parseExpr());
 				tk = token();
-				if( tk == TComma )
-					tk = token();
 			}
 			if( a.length == 1 && a[0] != null )
 				switch( expr(a[0]) ) {
@@ -605,7 +603,7 @@ class Parser {
 				if( semic ) push(TSemicolon);
 			}
 			mk(EIf(cond,e1,e2),p1,(e2 == null) ? tokenMax : pmax(e2));
-		case "var":
+		case "var", "final":
 			var ident = getIdent();
 			var tk = token();
 			var t = null;
@@ -614,10 +612,17 @@ class Parser {
 				tk = token();
 			}
 			var e = null;
-			if( Type.enumEq(tk,TOp("=")) )
-				e = parseExpr();
-			else
-				push(tk);
+
+			switch (tk)
+			{
+				case TOp("="): e = parseExpr();
+				case TOp(_): unexpected(tk);
+				case TComma | TSemicolon: push(tk);
+				// Above case should be enough but semicolon is not mandatory after }
+				case _ if (t != null): push(tk);
+				default: unexpected(tk);
+			}
+
 			mk(EVar(ident,t,e),p1,(e == null) ? tokenMax : pmax(e));
 		case "while":
 			var econd = parseExpr();
@@ -842,9 +847,23 @@ class Parser {
 				return parseExprNext(mk(EUnop(op,false,e1),pmin(e1)));
 			}
 			return makeBinop(op,e1,parseExpr());
+		case TId(op) if ( op == 'is' ):
+			return makeBinop(op,e1,parseExpr());
 		case TDot:
 			var field = getIdent();
 			return parseExprNext(mk(EField(e1,field),pmin(e1)));
+		case TQuestionDot:
+			var field = getIdent();
+			var tmp = "__a_" + (uid++);
+			var e = mk(EBlock([
+				mk(EVar(tmp, null, e1), pmin(e1), pmax(e1)),
+				mk(ETernary(
+					mk(EBinop("==", mk(EIdent(tmp),pmin(e1),pmax(e1)), mk(EIdent("null"),pmin(e1),pmax(e1)))),
+					mk(EIdent("null"),pmin(e1),pmax(e1)),
+					mk(EField(mk(EIdent(tmp),pmin(e1),pmax(e1)),field),pmin(e1))
+				))
+			]),pmin(e1));
+			return parseExprNext(e);
 		case TPOpen:
 			return parseExprNext(mk(ECall(e1,parseExprList(TPClose)),pmin(e1)));
 		case TBkOpen:
@@ -944,7 +963,13 @@ class Parser {
 				if( op == "<" ) {
 					params = [];
 					while( true ) {
-						params.push(parseType());
+						switch( token() ) {
+						case TConst(c):
+							params.push(CTExpr(mk(EConst(c))));
+						case tk:
+							push(tk);
+							params.push(parseType());
+						}
 						t = token();
 						switch( t ) {
 						case TComma: continue;
@@ -970,8 +995,8 @@ class Parser {
 			}
 			return parseTypeNext(CTPath(path, params));
 		case TPOpen:
-			var a = token(),
-					b = token();
+			var a = token();
+			var b = token();
 
 			push(b);
 			push(a);
@@ -1024,9 +1049,13 @@ class Parser {
 				t = token();
 				switch( t ) {
 				case TBrClose: break;
-				case TId("var"):
+				case TId("var"), TId("final"):
 					var name = getIdent();
 					ensure(TDoubleDot);
+					if( t.match(TId("final")) ) {
+						if( meta == null ) meta = [];
+						meta.push({ name : ":final", params : [] });
+					}
 					fields.push( { name : name, t : parseType(), meta : meta } );
 					meta = null;
 					ensure(TSemicolon);
@@ -1097,8 +1126,8 @@ class Parser {
 
 	// ------------------------ module -------------------------------
 
-	public function parseModule( content : String, ?origin : String = "hscript" ) {
-		initParser(origin);
+	public function parseModule( content : String, ?origin : String = "hscript", ?position = 0 ) {
+		initParser(origin, position);
 		input = content;
 		readPos = 0;
 		allowTypes = true;
@@ -1130,7 +1159,7 @@ class Parser {
 
 	function parseParams() {
 		if( maybe(TOp("<")) )
-			error(EInvalidOp("Unsupported class type parameters"), readPos, readPos);
+			error(EInvalidOp("Unsupported class type parameters"), currentPos, currentPos);
 		return {};
 	}
 
@@ -1258,7 +1287,7 @@ class Parser {
 						ret : inf.ret,
 					}),
 				};
-			case "var":
+			case "var", "final":
 				var name = getIdent();
 				var get = null, set = null;
 				if( maybe(TPOpen) ) {
@@ -1312,7 +1341,7 @@ class Parser {
 		var old = line;
 		var s = input;
 		#if hscriptPos
-		var p1 = readPos - 1;
+		var p1 = currentPos - 1;
 		#end
 		while( true ) {
 			var c = readChar();
@@ -1375,9 +1404,9 @@ class Parser {
 		}
 		oldTokenMin = tokenMin;
 		oldTokenMax = tokenMax;
-		tokenMin = (this.char < 0) ? readPos : readPos - 1;
+		tokenMin = (this.char < 0) ? currentPos : currentPos - 1;
 		var t = _token();
-		tokenMax = (this.char < 0) ? readPos - 1 : readPos - 2;
+		tokenMax = (this.char < 0) ? currentPos - 1 : currentPos - 2;
 		return t;
 	}
 
@@ -1434,6 +1463,8 @@ class Parser {
 						}
 						if( pow == null )
 							invalidChar(char);
+						if( exp == 0 )
+							exp = 10;
 						return TConst(CFloat((Math.pow(10, pow) / exp) * n * 10));
 					case ".".code:
 						if( exp > 0 ) {
@@ -1450,7 +1481,6 @@ class Parser {
 						if( n > 0 || exp > 0 )
 							invalidChar(char);
 						// read hexa
-						#if haxe3
 						var n = 0;
 						while( true ) {
 							char = readChar();
@@ -1466,27 +1496,6 @@ class Parser {
 								return TConst(CInt(n));
 							}
 						}
-						#else
-						var n = haxe.Int32.ofInt(0);
-						while( true ) {
-							char = readChar();
-							switch( char ) {
-							case 48,49,50,51,52,53,54,55,56,57: // 0-9
-								n = haxe.Int32.add(haxe.Int32.shl(n,4), cast (char - 48));
-							case 65,66,67,68,69,70: // A-F
-								n = haxe.Int32.add(haxe.Int32.shl(n,4), cast (char - 55));
-							case 97,98,99,100,101,102: // a-f
-								n = haxe.Int32.add(haxe.Int32.shl(n,4), cast (char - 87));
-							default:
-								this.char = char;
-								// we allow to parse hexadecimal Int32 in Neko, but when the value will be
-								// evaluated by Interpreter, a failure will occur if no Int32 operation is
-								// performed
-								var v = try CInt(haxe.Int32.toInt(n)) catch( e : Dynamic ) CInt32(n);
-								return TConst(v);
-							}
-						}
-						#end
 					default:
 						this.char = char;
 						var i = Std.int(n);
@@ -1528,7 +1537,12 @@ class Parser {
 			case "[".code: return TBkOpen;
 			case "]".code: return TBkClose;
 			case "'".code, '"'.code: return TConst( CString(readString(char)) );
-			case "?".code: return TQuestion;
+			case "?".code:
+				char = readChar();
+				if( char == ".".code )
+					return TQuestionDot;
+				this.char = char;
+				return TQuestion;
 			case ":".code: return TDoubleDot;
 			case '='.code:
 				char = readChar();
@@ -1639,7 +1653,7 @@ class Parser {
 		case EBinop("||", e1, e2):
 			return evalPreproCond(e1) || evalPreproCond(e2);
 		default:
-			error(EInvalidPreprocessor("Can't eval " + expr(e).getName()), readPos, readPos);
+			error(EInvalidPreprocessor("Can't eval " + expr(e).getName()), currentPos, currentPos);
 			return false;
 		}
 	}
@@ -1680,7 +1694,7 @@ class Parser {
 	function skipTokens() {
 		var spos = preprocStack.length - 1;
 		var obj = preprocStack[spos];
-		var pos = readPos;
+		var pos = currentPos;
 		while( true ) {
 			var tk = token();
 			if( tk == TEof )
@@ -1739,9 +1753,6 @@ class Parser {
 		case CInt(v): Std.string(v);
 		case CFloat(f): Std.string(f);
 		case CString(s): s; // TODO : escape + quote
-		#if !haxe3
-		case CInt32(v): Std.string(v);
-		#end
 		}
 	}
 
@@ -1756,6 +1767,7 @@ class Parser {
 		case TBrOpen: "{";
 		case TBrClose: "}";
 		case TDot: ".";
+		case TQuestionDot: "?.";
 		case TComma: ",";
 		case TSemicolon: ";";
 		case TBkOpen: "[";
