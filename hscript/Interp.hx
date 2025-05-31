@@ -45,6 +45,8 @@ class Interp {
 	var curExpr : Expr;
 	#end
 
+	var parentInstance : Dynamic;
+
 	public function new() {
 		locals = new Map();
 		declared = new Array();
@@ -284,7 +286,9 @@ class Interp {
 
 	function resolve( id : String ) : Dynamic {
 		var v = variables.get(id);
-		if( v == null && !variables.exists(id) )
+		if( !variables.exists(id) )
+			v = Reflect.getProperty(parentInstance, v);
+		if ( v == null )
 			error(EUnknownVariable(id));
 		return v;
 	}
