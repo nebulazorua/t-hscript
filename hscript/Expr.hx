@@ -19,184 +19,151 @@
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
  */
-
 package hscript;
 
-enum Const
-{
-	CInt(v:Int);
-	CFloat(f:Float);
-	CString(s:String);
+enum Const {
+	CInt( v : Int );
+	CFloat( f : Float );
+	CString( s : String );
 	#if !haxe3
-	CInt32(v:haxe.Int32);
+	CInt32( v : haxe.Int32 );
 	#end
 }
 
 #if hscriptPos
-typedef Expr =
-{
-	var e:ExprDef;
-	var pmin:Int;
-	var pmax:Int;
-	var origin:String;
-	var line:Int;
+typedef Expr = {
+	var e : ExprDef;
+	var pmin : Int;
+	var pmax : Int;
+	var origin : String;
+	var line : Int;
 }
-
-enum ExprDef
-{
+enum ExprDef {
 #else
 typedef ExprDef = Expr;
-
-enum Expr
-{
+enum Expr {
 #end
-
-EConst(c:Const);
-EIdent(v:String);
-EVar(n:String, ?t:CType, ?e:Expr);
-EParent(e:Expr);
-EBlock(e:Array<Expr>);
-EField(e:Expr, f:String);
-EBinop(op:String, e1:Expr, e2:Expr);
-EUnop(op:String, prefix:Bool, e:Expr);
-ECall(e:Expr, params:Array<Expr>);
-EIf(cond:Expr, e1:Expr, ?e2:Expr);
-EWhile(cond:Expr, e:Expr);
-EFor(v:String, it:Expr, e:Expr);
-EBreak;
-EContinue;
-EFunction(args:Array<Argument>, e:Expr, ?name:String, ?ret:CType);
-EReturn(?e:Expr);
-EArray(e:Expr, index:Expr);
-EArrayDecl(e:Array<Expr>);
-ENew(cl:String, params:Array<Expr>);
-EThrow(e:Expr);
-ETry(e:Expr, v:String, t:Null<CType>, ecatch:Expr);
-EObject(fl:Array<{name:String, e:Expr}>);
-ETernary(cond:Expr, e1:Expr, e2:Expr);
-ESwitch(e:Expr, cases:Array<{values:Array<Expr>, expr:Expr}>, ?defaultExpr:Expr);
-EDoWhile(cond:Expr, e:Expr);
-EMeta(name:String, args:Array<Expr>, e:Expr);
-ECheckType(e:Expr, t:CType);
-EImport(p:String, m:ImportMode);
-} enum ImportMode
-{
-	IAll; // Import Star (import haxe.*)
-	IAsName(alias:String); // Import with alias (import haxe.Json as JsonReader)
-	INormal; // Import normally (import haxe.Json)
+	EConst( c : Const );
+	EIdent( v : String );
+	EVar( n : String, ?t : CType, ?e : Expr );
+	EParent( e : Expr );
+	EBlock( e : Array<Expr> );
+	EField( e : Expr, f : String );
+	EBinop( op : String, e1 : Expr, e2 : Expr );
+	EUnop( op : String, prefix : Bool, e : Expr );
+	ECall( e : Expr, params : Array<Expr> );
+	EIf( cond : Expr, e1 : Expr, ?e2 : Expr );
+	EWhile( cond : Expr, e : Expr );
+	EFor( v : String, it : Expr, e : Expr );
+	EBreak;
+	EContinue;
+	EFunction( args : Array<Argument>, e : Expr, ?name : String, ?ret : CType );
+	EReturn( ?e : Expr );
+	EArray( e : Expr, index : Expr );
+	EArrayDecl( e : Array<Expr> );
+	ENew( cl : String, params : Array<Expr> );
+	EThrow( e : Expr );
+	ETry( e : Expr, v : String, t : Null<CType>, ecatch : Expr );
+	EObject( fl : Array<{ name : String, e : Expr }> );
+	ETernary( cond : Expr, e1 : Expr, e2 : Expr );
+	ESwitch( e : Expr, cases : Array<{ values : Array<Expr>, expr : Expr }>, ?defaultExpr : Expr);
+	EDoWhile( cond : Expr, e : Expr);
+	EMeta( name : String, args : Array<Expr>, e : Expr );
+	ECheckType( e : Expr, t : CType );
+    EImport(p:String, m:ImportMode);
 }
 
-typedef Argument =
-{
-	name:String,
-	?t:CType,
-	?opt:Bool,
-	?value:Expr
-};
+enum ImportMode {
+    IAll; // Import Star (import haxe.*)
+    IAsName(alias:String); // Import with alias (import haxe.Json as JsonReader)
+    INormal; // Import normally (import haxe.Json)
+}
 
-typedef Metadata = Array<{name:String, params:Array<Expr>}>;
+typedef Argument = { name : String, ?t : CType, ?opt : Bool, ?value : Expr };
 
-enum CType
-{
-	CTPath(path:Array<String>, ?params:Array<CType>);
-	CTFun(args:Array<CType>, ret:CType);
-	CTAnon(fields:Array<{name:String, t:CType, ?meta:Metadata}>);
-	CTParent(t:CType);
-	CTOpt(t:CType);
-	CTNamed(n:String, t:CType);
+typedef Metadata = Array<{ name : String, params : Array<Expr> }>;
+
+enum CType {
+	CTPath( path : Array<String>, ?params : Array<CType> );
+	CTFun( args : Array<CType>, ret : CType );
+	CTAnon( fields : Array<{ name : String, t : CType, ?meta : Metadata }> );
+	CTParent( t : CType );
+	CTOpt( t : CType );
+	CTNamed( n : String, t : CType );
 }
 
 #if hscriptPos
-class Error
-{
-	public var e:ErrorDef;
-	public var pmin:Int;
-	public var pmax:Int;
-	public var origin:String;
-	public var line:Int;
-
-	public function new(e, pmin, pmax, origin, line)
-	{
+class Error {
+	public var e : ErrorDef;
+	public var pmin : Int;
+	public var pmax : Int;
+	public var origin : String;
+	public var line : Int;
+	public function new(e, pmin, pmax, origin, line) {
 		this.e = e;
 		this.pmin = pmin;
 		this.pmax = pmax;
 		this.origin = origin;
 		this.line = line;
 	}
-
-	public function toString():String
-	{
+	public function toString(): String {
 		return Printer.errorToString(this);
 	}
 }
-
-enum ErrorDef
-{
+enum ErrorDef {
 #else
-enum Error
-{
+enum Error {
 #end
-
-EInvalidChar(c:Int);
-EUnexpected(s:String);
-EUnterminatedString;
-EUnterminatedComment;
-EInvalidPreprocessor(msg:String);
-EUnknownVariable(v:String);
-EInvalidIterator(v:String);
-EInvalidOp(op:String);
-EInvalidAccess(f:String);
-EInvalidType(f:String);
-EDeclaration;
-EModuleUpper;
-EAliasUpper;
-ENoSuperCall;
-EUnknownClass(c:String);
-EParamLimit;
-ECustom(msg:String);
-} enum ModuleDecl
-{
-	DPackage(path:Array<String>);
-	DImport(path:Array<String>, ?everything:Bool);
-	DClass(c:ClassDecl);
-	DTypedef(c:TypeDecl);
+	EInvalidChar( c : Int );
+	EUnexpected( s : String );
+	EUnterminatedString;
+	EUnterminatedComment;
+	EInvalidPreprocessor( msg : String );
+	EUnknownVariable( v : String );
+	EInvalidIterator( v : String );
+	EInvalidOp( op : String );
+	EInvalidAccess( f : String );
+    EInvalidType(f : String);
+    EDeclaration;
+    EModuleUpper;
+    EAliasUpper;
+	ECustom( msg : String );
 }
 
-typedef ModuleType =
-{
-	var name:String;
-	var params:{}; // TODO : not yet parsed
-	var meta:Metadata;
-	var isPrivate:Bool;
+
+enum ModuleDecl {
+	DPackage( path : Array<String> );
+	DImport( path : Array<String>, ?everything : Bool );
+	DClass( c : ClassDecl );
+	DTypedef( c : TypeDecl );
 }
 
-typedef ClassDecl =
-{
-	> ModuleType,
-	var extend:Null<CType>;
-	var implement:Array<CType>;
-	var fields:Array<FieldDecl>;
-	var isExtern:Bool;
-	var ?imports:Map<String, Array<String>>;
-	var ?pkg:Array<String>;
+typedef ModuleType = {
+	var name : String;
+	var params : {}; // TODO : not yet parsed
+	var meta : Metadata;
+	var isPrivate : Bool;
 }
 
-typedef TypeDecl =
-{
-	> ModuleType,
-	var t:CType;
+typedef ClassDecl = {> ModuleType,
+	var extend : Null<CType>;
+	var implement : Array<CType>;
+	var fields : Array<FieldDecl>;
+	var isExtern : Bool;
 }
 
-typedef FieldDecl =
-{
-	var name:String;
-	var meta:Metadata;
-	var kind:FieldKind;
-	var access:Array<FieldAccess>;
+typedef TypeDecl = {> ModuleType,
+	var t : CType;
 }
 
-enum FieldAccess
-{
+typedef FieldDecl = {
+	var name : String;
+	var meta : Metadata;
+	var kind : FieldKind;
+	var access : Array<FieldAccess>;
+}
+
+enum FieldAccess {
 	APublic;
 	APrivate;
 	AInline;
@@ -205,23 +172,20 @@ enum FieldAccess
 	AMacro;
 }
 
-enum FieldKind
-{
-	KFunction(f:FunctionDecl);
-	KVar(v:VarDecl);
+enum FieldKind {
+	KFunction( f : FunctionDecl );
+	KVar( v : VarDecl );
 }
 
-typedef FunctionDecl =
-{
-	var args:Array<Argument>;
-	var expr:Expr;
-	var ret:Null<CType>;
+typedef FunctionDecl = {
+	var args : Array<Argument>;
+	var expr : Expr;
+	var ret : Null<CType>;
 }
 
-typedef VarDecl =
-{
-	var get:Null<String>;
-	var set:Null<String>;
-	var expr:Null<Expr>;
-	var type:Null<CType>;
+typedef VarDecl = {
+	var get : Null<String>;
+	var set : Null<String>;
+	var expr : Null<Expr>;
+	var type : Null<CType>;
 }
