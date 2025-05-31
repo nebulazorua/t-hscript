@@ -25,9 +25,6 @@ enum Const {
 	CInt( v : Int );
 	CFloat( f : Float );
 	CString( s : String );
-	#if !haxe3
-	CInt32( v : haxe.Int32 );
-	#end
 }
 
 #if hscriptPos
@@ -90,6 +87,7 @@ enum CType {
 	CTParent( t : CType );
 	CTOpt( t : CType );
 	CTNamed( n : String, t : CType );
+	CTExpr( e : Expr ); // for type parameters only
 }
 
 #if hscriptPos
