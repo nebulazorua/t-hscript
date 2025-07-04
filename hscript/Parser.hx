@@ -773,48 +773,48 @@ class Parser {
 				}
 			}
 			mk(ESwitch(e, cases, def), p1, tokenMax);
-        case "import":
-            var path = [getIdent()];
+		case "import":
+			var path = [getIdent()];
 
-            var mode = INormal;
-            while (true) {
-                var t = token();
-                if (t != TDot) {
-                    push(t);
-                    break;
-                }
-                t = token();
-                switch (t) {
-                    case TId(id):
-                        path.push(id);
-                    case TOp("*"):
+			var mode = INormal;
+			while (true) {
+				var t = token();
+				if (t != TDot) {
+					push(t);
+					break;
+				}
+				t = token();
+				switch (t) {
+					case TId(id):
+						path.push(id);
+					case TOp("*"):
 						mode = IAll;
-                        break;
-                    default:
-                        unexpected(t);
-                }
-            }
+						break;
+					default:
+						unexpected(t);
+				}
+			}
 
-            var hasAlias = maybe(TId("as"));
+			var hasAlias = maybe(TId("as"));
 			var aliasIdentifier:String = hasAlias ? getIdent() : null;
-            if(aliasIdentifier.trim().length == 0)
-                aliasIdentifier = null;
-            
-            if(hasAlias && aliasIdentifier == null)
-                unexpected(TId("as"));
-            
-            
-            if(hasAlias && aliasIdentifier != null){
-                var beginning = aliasIdentifier.charAt(0);
-                if(!(beginning >= 'A' && beginning <= 'Z'))
+			if(aliasIdentifier.trim().length == 0)
+				aliasIdentifier = null;
+			
+			if(hasAlias && aliasIdentifier == null)
+				unexpected(TId("as"));
+			
+			
+			if(hasAlias && aliasIdentifier != null){
+				var beginning = aliasIdentifier.charAt(0);
+				if(!(beginning >= 'A' && beginning <= 'Z'))
 					error(EAliasUpper, tokenMin, tokenMax);
-                else
-                    mode = IAsName(aliasIdentifier);
-            }
+				else
+					mode = IAsName(aliasIdentifier);
+			}
 
-            //ensure(TSemicolon);
+			//ensure(TSemicolon);
 
-            mk(EImport(path.join("."), mode));
+			mk(EImport(path.join("."), mode));
 		default:
 			null;
 		}

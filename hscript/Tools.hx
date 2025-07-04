@@ -57,7 +57,7 @@ class Tools {
 			if( def != null ) f(def);
 		case EMeta(name, args, e): if( args != null ) for( a in args ) f(a); f(e);
 		case ECheckType(e,_): f(e);
-        case EImport(p, m):
+		case EImport(p, m):
 		}
 	}
 
