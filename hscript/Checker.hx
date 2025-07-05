@@ -960,6 +960,8 @@ class Checker {
 			default: TDynamic;
 			}
 		switch( edef(expr) ) {
+		case EImport(p, m):
+			TNull;
 		case EConst(c):
 			return switch (c) {
 			case CInt(_): TInt;
