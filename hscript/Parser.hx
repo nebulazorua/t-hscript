@@ -774,8 +774,14 @@ class Parser {
 			}
 			mk(ESwitch(e, cases, def), p1, tokenMax);
 		case "import":
-			var path = [getIdent()];
+			inline function startsUppercase(str:String) {
+				var beginning = str.charCodeAt(0);
+				return beginning >= 'A'.code && beginning <= 'Z'.code;
+			}
 
+			var path = [getIdent()];
+			var className:Null<String> = startsUppercase(path[0]) ? path[0] : null;
+			var fieldName:Null<String> = null;
 			var mode = INormal;
 			while (true) {
 				var t = token();
@@ -786,6 +792,13 @@ class Parser {
 				t = token();
 				switch (t) {
 					case TId(id):
+						if (className == null && startsUppercase(id))
+							className = id;
+						else if (fieldName == null)
+							fieldName = id;
+						else 
+							unexpected(t);
+
 						path.push(id);
 					case TOp("*"):
 						mode = IAll;
@@ -795,22 +808,18 @@ class Parser {
 				}
 			}
 
-			var hasAlias = maybe(TId("as"));
-			var aliasIdentifier:String = hasAlias ? getIdent() : null;
-			if(aliasIdentifier.trim().length == 0)
-				aliasIdentifier = null;
-			
-			if(hasAlias && aliasIdentifier == null)
-				unexpected(TId("as"));
-			
-			
-			if(hasAlias && aliasIdentifier != null){
-				var beginning = aliasIdentifier.charAt(0);
-				if(!(beginning >= 'A' && beginning <= 'Z'))
-					error(EAliasUpper, tokenMin, tokenMax);
-				else
-					mode = IAsName(aliasIdentifier);
-			}
+			if (className == null)  // no uppercase identifier found
+				error(EModuleUpper, tokenMin, tokenMax);
+
+			if (mode != IAll) {
+				if (maybe(TId("as")) || maybe(TId("in"))) {
+					var alias:String = getIdent();
+					if (fieldName == null && !startsUppercase(alias))
+						error(EAliasUpper, tokenMin, tokenMax);
+					else
+						mode = IAsName(alias);
+				}
+			}	
 
 			//ensure(TSemicolon);
 

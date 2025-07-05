@@ -154,6 +154,18 @@ class TestHScript extends TestCase {
 		assertScript("pt2?.pt?.x", 10, vars);
 	}
 
+	function testImports():Void {
+		assertScript("import Type; Type", Type);
+		assertScript("import Type as Alias; Alias", Type);
+		assertScript("import Type.resolveClass as alias; alias", Type.resolveClass);
+		assertScript("import Type.*; resolveClass", Type.resolveClass);
+
+		assertScript("import haxe.SysTools; SysTools", haxe.SysTools);
+		assertScript("import haxe.SysTools as Alias; Alias", haxe.SysTools);
+		assertScript("import haxe.SysTools.quoteUnixArg as alias; alias", haxe.SysTools.quoteUnixArg);
+		assertScript("import haxe.SysTools.*; quoteUnixArg", haxe.SysTools.quoteUnixArg);
+	}
+
 	function testIsOperator():Void {
 		var vars = {
 			String: String,
