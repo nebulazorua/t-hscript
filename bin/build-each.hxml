@@ -1,0 +1,3 @@
+-main TestHScript
+-dce no
+-lib hx3compat

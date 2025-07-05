@@ -1,2 +1,2 @@
 bin/build-each.hxml
--hl bin/Test.hl
+-cs bin
