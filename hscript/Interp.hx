@@ -778,15 +778,15 @@ class Interp {
 	function get( o : Dynamic, f : String ) : Dynamic {
 		if ( o == null ) error(EInvalidAccess(f));
 		var c = Type.getClass(o);
-		var n = Type.getClassName(c);
-
-		var extraData:Null<Map<String, Dynamic>> = getExtraData(o, n);
-
-		if (extraData != null){
-			if (extraData.exists('get_$f'))
-				return extraData.get('get_$f')();
-			else if(extraData.exists(f))
-				return extraData.get(f);
+		if (c != null) {
+			var n = Type.getClassName(c);
+			var extraData:Null<Map<String, Dynamic>> = getExtraData(o, n);
+			if (extraData != null){
+				if (extraData.exists('get_$f'))
+					return extraData.get('get_$f')();
+				else if(extraData.exists(f))
+					return extraData.get(f);
+			}
 		}
 
 		return {
@@ -807,16 +807,16 @@ class Interp {
 		if( o == null ) error(EInvalidAccess(f));
 
 		var c = Type.getClass(o);
-		var n = Type.getClassName(c);
-
-		var extraData:Null<Map<String, Dynamic>> = getExtraData(o, n);
-
-		if (extraData != null) {
-			if (extraData.exists('set_$f'))
-				return extraData.get('set_$f')(v);
-			else if (extraData.exists(f)){
-				extraData.set(f, v);
-				return v;
+		if (c != null) {
+			var n = Type.getClassName(c);
+			var extraData:Null<Map<String, Dynamic>> = getExtraData(o, n);
+			if (extraData != null) {
+				if (extraData.exists('set_$f'))
+					return extraData.get('set_$f')(v);
+				else if (extraData.exists(f)){
+					extraData.set(f, v);
+					return v;
+				}
 			}
 		}
 
