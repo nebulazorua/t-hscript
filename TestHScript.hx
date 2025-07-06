@@ -154,6 +154,16 @@ class TestHScript extends TestCase {
 		assertScript("pt2?.pt?.x", 10, vars);
 	}
 
+	function testNullCoalescing():Void {
+		assertScript("null ?? 1", 1);
+		assertScript("1 ?? 2", 1);
+		assertScript("var evaluated = false; 1 ?? {evaluated = true;}; evaluated", false);
+
+		assertScript("var foo = null; foo ??= 1; foo", 1);
+		assertScript("var foo = 1; foo ??= 2; foo", 1);
+		assertScript("var foo = 1; var evaluated = false; foo ??= {evaluated = true;}; evaluated", false);
+	}
+
 	function testImports():Void {
 		assertScript("import Type; Type", Type);
 		assertScript("import Type as Alias; Alias", Type);
