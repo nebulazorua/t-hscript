@@ -98,6 +98,7 @@ class Interp {
 		binops.set("=",assign);
 		binops.set("...",function(e1,e2) return new IntIterator(me.expr(e1),me.expr(e2)));
 		binops.set("is",function(e1,e2) return #if (haxe_ver >= 4.2) Std.isOfType #else Std.is #end (me.expr(e1), me.expr(e2)));
+		binops.set("??",function(e1,e2) return me.expr(e1) ?? me.expr(e2));
 		assignOp("+=",function(v1:Dynamic,v2:Dynamic) return v1 + v2);
 		assignOp("-=",function(v1:Float,v2:Float) return v1 - v2);
 		assignOp("*=",function(v1:Float,v2:Float) return v1 * v2);
@@ -109,6 +110,7 @@ class Interp {
 		assignOp("<<=",function(v1,v2) return v1 << v2);
 		assignOp(">>=",function(v1,v2) return v1 >> v2);
 		assignOp(">>>=",function(v1,v2) return v1 >>> v2);
+		binops.set(#if cpp "??"+"=" #else "??=" #end, function(e1, e2) return me.exprAssignValue(e1, me.expr(e1) ?? me.expr(e2)));
 	}
 
 	function setVar( name : String, v : Dynamic ) {
@@ -117,7 +119,10 @@ class Interp {
 	}
 
 	function assign( e1 : Expr, e2 : Expr ) : Dynamic {
-		var v = expr(e2);
+		return exprAssignValue(e1, expr(e2));
+	}
+
+	function exprAssignValue( e1 : Expr, v : Dynamic ) : Dynamic {
 		switch( Tools.expr(e1) ) {
 		case EIdent(id):
 			var l = locals.get(id);
