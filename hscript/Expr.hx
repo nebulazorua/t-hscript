@@ -67,6 +67,7 @@ enum Expr {
 	EDoWhile( cond : Expr, e : Expr);
 	EMeta( name : String, args : Array<Expr>, e : Expr );
 	ECheckType( e : Expr, t : CType );
+	EForGen( it : Expr, e : Expr );
 	EImport(p:String, m:ImportMode);
 }
 
