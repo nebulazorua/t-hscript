@@ -804,9 +804,10 @@ class Parser {
 				t = token();
 				switch (t) {
 					case TId(id):
-						if (className == null && startsUppercase(id))
-							className = id;
-						else if (fieldName == null)
+						if (className == null) {
+							if (startsUppercase(id))
+								className = id;
+						} else if (fieldName == null)
 							fieldName = id;
 						else 
 							unexpected(t);
