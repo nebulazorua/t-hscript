@@ -38,6 +38,7 @@ class RunScript {
 				error("Too many arguments. Expected 2 got " + args.length);
 			}
 			executeScriptFile(args[1]);
+			return;
 		}
 
 		if (args[0] == "--help") {
