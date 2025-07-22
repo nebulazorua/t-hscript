@@ -33,6 +33,7 @@ enum Token {
 	TPClose;
 	TBrOpen;
 	TBrClose;
+	TApostrophe;
 	TDot;
 	TQuestionDot;
 	TComma;
@@ -429,6 +430,132 @@ class Parser {
 				push(tk);
 			}
 			return mk(EBlock(a),p1);
+		case TApostrophe:			
+			var a = new Array<Expr>();
+			var money = false;
+			// readString
+			var b = new StringBuf();
+			var esc = false;
+			var old = line;
+			#if hscriptPos
+			var p1 = currentPos - 1;
+			#end
+
+			while( true ) {
+				var c = readChar();
+				if( StringTools.isEof(c) ) {
+					line = old;
+					error(EUnterminatedString, p1, p1);
+					break;
+				}
+				if( esc ) {
+					esc = false;
+					switch( c ) {
+					case 'n'.code: b.addChar('\n'.code);
+					case 'r'.code: b.addChar('\r'.code);
+					case 't'.code: b.addChar('\t'.code);
+					case "'".code, '"'.code, '\\'.code: b.addChar(c);
+					case '/'.code: if( allowJSON ) b.addChar(c) else invalidChar(c);
+					case "u".code:
+						if( !allowJSON ) invalidChar(c);
+						var k = 0;
+						for( i in 0...4 ) {
+							k <<= 4;
+							var char = readChar();
+							switch( char ) {
+							case 48,49,50,51,52,53,54,55,56,57: // 0-9
+								k += char - 48;
+							case 65,66,67,68,69,70: // A-F
+								k += char - 55;
+							case 97,98,99,100,101,102: // a-f
+								k += char - 87;
+							default:
+								if( StringTools.isEof(char) ) {
+									line = old;
+									error(EUnterminatedString, p1, p1);
+								}
+								invalidChar(char);
+							}
+						}
+						b.addChar(k);
+					default: invalidChar(c);
+					}
+				}
+				else if( c == 92 )
+					esc = true;
+				else if( money ) {
+					switch(c) {
+					case 48,49,50,51,52,53,54,55,56,57: money = false; // 0-9
+					case "'".code: readPos--; money = false;
+					case "{".code: money = true;
+					default: money = idents[c];
+					}
+
+					if (!money) {
+						if (c != "$".code) b.addChar('$'.code);
+						if (c != "'".code) { // scary
+							if( c == 10 ) line++;
+							b.addChar(c);
+						}
+					}else {
+						if (b.length > 0) {
+							a.push( mk( EConst( CString(b.toString()) ), p1) );
+							b = new StringBuf();
+						}
+						
+						readPos--;
+						this.char = -1;
+						var t = token();
+						readPos--;
+						
+						switch(t) {
+							case TId(s):
+								a.push(mk(EIdent(s), p1));
+							
+							case TBrOpen:
+								readPos++;
+								a.push(parseExpr());
+								ensure(TBrClose);
+							
+							case TApostrophe:
+								this.char = -1;
+								break;
+							
+							case TEof:
+								unexpected(t);
+							
+							default:
+						}
+					}	
+				}
+				else if( c == "$".code ) 
+					money = true;
+				else if ( c == "'".code ) {
+					this.char = -1;
+					if (b.length > 0) {
+						a.push( mk( EConst( CString(b.toString()) ), p1) );
+						b = new StringBuf();
+					}
+					break;
+				}
+				else {
+					if( c == 10 ) line++;
+					b.addChar(c);
+				}
+			}
+
+			var e = switch(a.length) {
+				case 0: mk(EConst(CString('')), p1);
+				case 1: mk(expr(a.pop()), p1);
+				default:
+					while (a.length > 1) {
+						var e2 = a.pop(); var e1 = a.pop();
+						a[a.length] = makeBinop("+", e1, e2);
+					}
+					a.pop();
+			}
+			return parseExprNext(e);
+
 		case TOp(op):
 			if( op == "-" ) {
 				var start = tokenMin;
@@ -1558,7 +1685,8 @@ class Parser {
 			case "}".code: return TBrClose;
 			case "[".code: return TBkOpen;
 			case "]".code: return TBkClose;
-			case "'".code, '"'.code: return TConst( CString(readString(char)) );
+			case '"'.code: return TConst( CString(readString(char)) );
+			case "'".code: return TApostrophe;
 			case "?".code:
 				char = readChar();
 				if( char == ".".code )
@@ -1795,6 +1923,7 @@ class Parser {
 		case TPClose: ")";
 		case TBrOpen: "{";
 		case TBrClose: "}";
+		case TApostrophe: "'";
 		case TDot: ".";
 		case TQuestionDot: "?.";
 		case TComma: ",";
