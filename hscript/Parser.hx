@@ -432,7 +432,6 @@ class Parser {
 			return mk(EBlock(a),p1);
 		case TApostrophe:			
 			var a = new Array<Expr>();
-			var money = false;
 			// readString
 			var b = new StringBuf();
 			var esc = false;
@@ -440,6 +439,13 @@ class Parser {
 			#if hscriptPos
 			var p1 = currentPos - 1;
 			#end
+
+			inline function pushBuf() {
+				if (b.length > 0) {
+					a.push( mk( EConst( CString( b.toString() ) ), p1) );
+					b = new StringBuf();
+				}
+			}
 
 			while( true ) {
 				var c = readChar();
@@ -483,42 +489,51 @@ class Parser {
 				}
 				else if( c == 92 )
 					esc = true;
-				else if( money ) {
-					switch(c) {
-					case 48,49,50,51,52,53,54,55,56,57: money = false; // 0-9
-					case "'".code: readPos--; money = false;
-					case "{".code: money = true;
-					default: money = idents[c];
+				else if( c == "$".code ) {
+					var e = switch(c = readChar()) {	
+						case "'".code:
+							b.addChar("$".code);
+							pushBuf();
+							break;
+						
+						case 92:
+							b.addChar("$".code);
+							esc = true;
+							continue;
+
+						case "$".code: // $$ turns into $
+							b.addChar("$".code);
+							continue;
+						
+						case "{".code: // expression incoming
+							true;
+
+						case 48,49,50,51,52,53,54,55,56,57: // 0-9 identifiers can't start with a number
+							false;
+						
+						default:
+							idents[c];
 					}
 
-					if (!money) {
-						if (c != "$".code) b.addChar('$'.code);
-						if (c != "'".code) { // scary
-							if( c == 10 ) line++;
-							b.addChar(c);
-						}
+					if (!e) {
+						b.addChar("$".code);
+						b.addChar(c);
 					}else {
-						if (b.length > 0) {
-							a.push( mk( EConst( CString(b.toString()) ), p1) );
-							b = new StringBuf();
-						}
-						
-						readPos--;
-						this.char = -1;
+						pushBuf();
+						this.char = c;
 						var t = token();
-						readPos--;
 						
 						switch(t) {
 							case TId(s):
+								readPos--;
 								a.push(mk(EIdent(s), p1));
 							
 							case TBrOpen:
-								readPos++;
-								a.push(parseExpr());
+								var expr = parseExpr();
+								a.push(mk(EBlock([expr]), p1, pmax(expr)));
 								ensure(TBrClose);
 							
 							case TApostrophe:
-								this.char = -1;
 								break;
 							
 							case TEof:
@@ -528,14 +543,9 @@ class Parser {
 						}
 					}	
 				}
-				else if( c == "$".code ) 
-					money = true;
 				else if ( c == "'".code ) {
 					this.char = -1;
-					if (b.length > 0) {
-						a.push( mk( EConst( CString(b.toString()) ), p1) );
-						b = new StringBuf();
-					}
+					pushBuf();
 					break;
 				}
 				else {
