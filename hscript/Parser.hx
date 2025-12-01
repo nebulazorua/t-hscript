@@ -116,22 +116,24 @@ class Parser {
 			["+", "-"],
 			["<<", ">>", ">>>"],
 			["|", "&", "^"],
+			["??"],
 			["==", "!=", ">", "<", ">=", "<="],
 			["..."],
 			["&&"],
 			["||"],
-			["??"],
 			["=","+=","-=","*=","/=","%=",#if cpp "??"+"=" #else "??=" #end,"<<=",">>=",">>>=","|=","&=","^=","=>"],
 			["->"],
 			["in","is"]
 		];
 		opPriority = new Map();
 		opRightAssoc = new Map();
-		for( i in 0...priorities.length )
+		for( i in 0...priorities.length ) {
+			var isEq = priorities[i][0] == "=";
 			for( x in priorities[i] ) {
 				opPriority.set(x, i);
-				if( i == 10 ) opRightAssoc.set(x, true);
+				if( isEq ) opRightAssoc.set(x, true);
 			}
+		}
 		for( x in ["!", "++", "--", "~"] ) // unary "-" handled in parser directly!
 			opPriority.set(x, x == "++" || x == "--" ? -1 : -2);
 	}
@@ -1024,10 +1026,10 @@ class Parser {
 		}
 	}
 
-	function parseExprNext( e1 : Expr ) {
+	function parseExprNext( e1 : Expr, ?noOp = false ) {
 		var tk = token();
 		switch( tk ) {
-		case TOp(op):
+		case TOp(op) if( !noOp ):
 
 			if( op == "->" ) {
 				// single arg reinterpretation of `f -> e` , `(f) -> e` and `(f:T) -> e`
@@ -1051,15 +1053,15 @@ class Parser {
 				return parseExprNext(mk(EUnop(op,false,e1),pmin(e1)));
 			}
 			return makeBinop(op,e1,parseExpr());
-		case TId(op) if( opPriority.exists(op) ):
+		case TId(op) if( !noOp && opPriority.exists(op) ):
 			return parseExprNext(makeBinop(op,e1,parseExpr()));
 		case TDot:
 			var field = getIdent();
-			return parseExprNext(mk(EField(e1,field),pmin(e1)));
+			return parseExprNext(mk(EField(e1,field),pmin(e1)), noOp);
 		case TQuestionDot:
 			var tmp = "__a_" + (uid++);
 			push(TDot);
-			var e2 = parseExprNext(mk(EIdent(tmp),pmin(e1),pmax(e1)));
+			var e2 = parseExprNext(mk(EIdent(tmp),pmin(e1),pmax(e1)), true);
 			var e = mk(EBlock([
 				mk(EVar(tmp, null, e1), pmin(e1), pmax(e1)),
 				mk(ETernary(
@@ -1068,14 +1070,14 @@ class Parser {
 					e2,
 				))
 			]),pmin(e1));
-			return e;
+			return parseExprNext(e, noOp);
 		case TPOpen:
-			return parseExprNext(mk(ECall(e1,parseExprList(TPClose)),pmin(e1)));
+			return parseExprNext(mk(ECall(e1,parseExprList(TPClose)),pmin(e1)), noOp);
 		case TBkOpen:
 			var e2 = parseExpr();
 			ensure(TBkClose);
-			return parseExprNext(mk(EArray(e1,e2),pmin(e1)));
-		case TQuestion:
+			return parseExprNext(mk(EArray(e1,e2),pmin(e1)), noOp);
+		case TQuestion if( !noOp ):
 			var e2 = parseExpr();
 			ensure(TDoubleDot);
 			var e3 = parseExpr();
