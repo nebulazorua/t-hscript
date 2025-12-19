@@ -68,13 +68,14 @@ enum Expr {
 	EMeta( name : String, args : Array<Expr>, e : Expr );
 	ECheckType( e : Expr, t : CType );
 	EForGen( it : Expr, e : Expr );
+	ECast( e : Expr, ?t : CType );
 	EImport(p:String, m:ImportMode);
 }
 
 enum ImportMode {
 	IAll; // Import Star (import haxe.*)
 	IAsName(alias:String); // Import with alias (import haxe.Json as JsonReader)
-	INormal; // Import normally (import haxe.Json)
+	INormal; // Import normally (import haxe.Json)	
 }
 
 typedef Argument = { name : String, ?t : CType, ?opt : Bool, ?value : Expr };
@@ -132,7 +133,7 @@ enum Error {
 
 enum ModuleDecl {
 	DPackage( path : Array<String> );
-	DImport( path : Array<String>, ?everything : Bool );
+	DImport( path : Array<String>, ?everything : Bool, ?name : String );
 	DClass( c : ClassDecl );
 	DTypedef( c : TypeDecl );
 }
