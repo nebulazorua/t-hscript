@@ -543,9 +543,9 @@ class Interp {
 			if( !match )
 				val = def == null ? null : expr(def);
 			return val;
-		case EMeta(_, _, e):
-			return expr(e);
-		case ECheckType(e,_):
+		case EMeta(meta, args, e):
+			return exprMeta(meta, args, e);
+		case ECheckType(e,_), ECast(e,_):
 			return expr(e);
 		case EImport(p, m):
 			// check if import is after a declaration
@@ -619,6 +619,10 @@ class Interp {
 		return null;
 	}
 
+	function exprMeta(meta,args,e) : Dynamic {
+		return expr(e);
+	}
+
 	function doWhileLoop(econd,e) {
 		var old = declared.length;
 		do {
@@ -645,7 +649,8 @@ class Interp {
 			return (v : Array<Dynamic>).iterator();
 		if( v.iterator != null ) v = v.iterator();
 		#else
-		if(v.iterator != null) try v = v.iterator() catch( e : Dynamic ) {};
+		#if (cpp) if ( v.iterator != null ) #end
+			try v = v.iterator() catch( e : Dynamic ) {};
 		#end
 		if( v.hasNext == null || v.next == null ) error(EInvalidIterator(v));
 		return v;
@@ -749,6 +754,8 @@ class Interp {
 			isAllObject = isAllObject && Reflect.isObject(key);
 			isAllEnum = isAllEnum && Reflect.isEnumValue(key);
 		}
+
+		#if (haxe_ver >= 4.1)
 		if( isAllInt ) {
 			var m = new Map<Int,Dynamic>();
 			for( i => key in keys )
@@ -773,6 +780,20 @@ class Interp {
 				m.set(key, values[i]);
 			return m;
 		}
+		#else
+		var m:Dynamic = {
+			if ( isAllInt ) new haxe.ds.IntMap<Dynamic>();
+			else if ( isAllString ) new haxe.ds.StringMap<Dynamic>();
+			else if ( isAllEnum ) new haxe.ds.EnumValueMap<Dynamic, Dynamic>();
+			else if ( isAllObject ) new haxe.ds.ObjectMap<Dynamic, Dynamic>();
+			else null;
+		}
+		if( m != null ) {
+			for ( n in 0...keys.length )
+				setMapValue(m, keys[n], values[n]);
+			return m;
+		}
+		#end
 		error(ECustom("Invalid map keys "+keys));
 		return null;
 	}

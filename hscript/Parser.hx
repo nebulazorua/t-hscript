@@ -255,11 +255,11 @@ class Parser {
 		#end
 	}
 
-	inline function mk(e,?pmin,?pmax) : Expr {
+	inline function mk(e,pmin=-1,pmax=-1) : Expr {
 		#if hscriptPos
 		if( e == null ) return null;
-		if( pmin == null ) pmin = tokenMin;
-		if( pmax == null ) pmax = tokenMax;
+		if( pmin < 0 ) pmin = tokenMin;
+		if( pmax < 0 ) pmax = tokenMax;
 		return { e : e, pmin : pmin, pmax : pmax, origin : origin, line : line };
 		#else
 		return e;
@@ -280,6 +280,7 @@ class Parser {
 		case EFor(_,_,e), EForGen(_, e): isBlock(e);
 		case EReturn(e): e != null && isBlock(e);
 		case ETry(_, _, _, e): isBlock(e);
+		case EMeta(":markup",_,_): true;
 		case EMeta(_, _, e): isBlock(e);
 		default: false;
 		}
@@ -358,7 +359,7 @@ class Parser {
 			if( tk == TPClose ) {
 				ensureToken(TOp("->"));
 				var eret = parseExpr();
-				return mk(EFunction([], mk(EReturn(eret),p1)), p1);
+				return mkLambda([],eret,p1);
 			}
 			push(tk);
 			var e = parseExpr();
@@ -384,6 +385,8 @@ class Parser {
 				case EIdent(v): return parseLambda([{name:v}], pmin(e));
 				default:
 				}
+			case TEof if( resumeErrors ):
+				return e;
 			default:
 			}
 			return unexpected(tk);
@@ -583,6 +586,32 @@ class Parser {
 			}
 			if( opPriority.get(op) < 0 )
 				return makeUnop(op,parseExpr());
+			if( op == "<" ) {
+				var start = readPos - 1;
+				var ident = getIdent();
+				if( #if hscriptPos tokens.length != 0 #else !tokens.isEmpty() #end )
+					throw "assert";
+				if( readPos == start + ident.length + 1 ) {
+					var endTag = "</"+ident+">";
+					var end = input.indexOf(endTag, readPos);
+					if( end < 0 ) {
+						endTag = '/>';
+						end = input.indexOf(endTag, readPos);
+					}
+					if( end >= 0 ) {
+						readPos = end + endTag.length;
+						char = -1;
+						start--;
+						var end = readPos - 1;
+						#if hscriptPos
+						tokenMin = start + offset;
+						tokenMax = end + offset;
+						#end
+						var str = input.substr(start,end - start + 1);
+						return mk(EMeta(":markup",[],mk(EConst(CString(str)))));
+					}
+				}
+			}
 			return unexpected(tk);
 		case TBkOpen:
 			var a = new Array();
@@ -641,7 +670,11 @@ class Parser {
 		}
 		ensureToken(TOp("->"));
 		var eret = parseExpr();
-		return mk(EFunction(args, mk(EReturn(eret),pmin)), pmin);
+		return mkLambda(args,eret,pmin);
+	}
+
+	function mkLambda(args,eret,p) {
+		return mk(EFunction(args, mk(EMeta(":lambda",[],mk(EReturn(eret),pmin(eret))),p)),p);
 	}
 
 	function parseMetaArgs() {
@@ -922,6 +955,18 @@ class Parser {
 				}
 			}
 			mk(ESwitch(e, cases, def), p1, tokenMax);
+		case "cast":
+			var tk = token();
+			if( tk == TPOpen ) {
+				var e = parseExpr();
+				ensure(TComma);
+				var t = parseType();
+				mk(ECast(e,t), p1, tokenMax);
+			} else {
+				push(tk);
+				var e = parseExpr();
+				mk(ECast(e,null), p1, tokenMax);
+			}
 		case "import":
 			inline function startsUppercase(str:String) {
 				var beginning = str.charCodeAt(0);
@@ -989,10 +1034,10 @@ class Parser {
 				switch( expr(e1) ) {
 				case EIdent(i), EParent(expr(_) => EIdent(i)):
 					var eret = parseExpr();
-					return mk(EFunction([{ name : i }], mk(EReturn(eret),pmin(eret))), pmin(e1));
+					return mkLambda([{ name : i }], eret, pmin(e1));
 				case ECheckType(expr(_) => EIdent(i), t):
 					var eret = parseExpr();
-					return mk(EFunction([{ name : i, t : t }], mk(EReturn(eret),pmin(eret))), pmin(e1));
+					return mkLambda([{ name : i, t : t }], eret, pmin(e1));
 				default:
 				}
 				unexpected(tk);
@@ -1361,8 +1406,18 @@ class Parser {
 					unexpected(t);
 				}
 			}
+			var name = null;
+			if ( maybe(TId("as")) && !star) {
+				var t = token();
+				switch( t ) {
+				case TId(id):
+					name = id;
+				default:
+					unexpected(t);
+				}
+			}
 			ensure(TSemicolon);
-			return DImport(path, star);
+			return DImport(path, star, name);
 		case "class":
 			var name = getIdent();
 			var params = parseParams();
