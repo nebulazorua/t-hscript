@@ -578,45 +578,56 @@ class Interp {
 
 			switch(m) {
 				case IAll:
-					var cl = Type.resolveClass(classPath);
-					if (cl == null) {
-						error(EInvalidType(classPath));
-						return null;
-					}
-					for (fieldName in Type.getClassFields(cl)) {
-						variables.set(fieldName, Reflect.getProperty(cl, fieldName));
-					}
+					doImportFields(classPath);
 					return null;
 
 				case IAsName(alias): aliasName = alias;
 				case INormal: aliasName = fieldName ?? className;
 			}
 			
-			if (fieldName != null) {
-				var cl = Type.resolveClass(classPath);
-				if (cl == null) {
-					error(EInvalidType(classPath));
-					return null;
-				}
-				if (!Type.getClassFields(cl).contains(fieldName)) {
-					error(ECustom('Class $classPath does not define field $fieldName'));
-					return null;
-				}
-				variables.set(aliasName, Reflect.getProperty(cl, fieldName));
-				
-			}else {
-				var clEn:Dynamic = Type.resolveClass(classPath);
-				if (clEn == null)
-					clEn = Type.resolveEnum(classPath);
-				if (clEn == null) {
-					error(EInvalidType(classPath));
-					return null;
-				}
-				variables.set(aliasName, clEn);
-			}
+			if (fieldName != null)
+				doImportField(classPath, fieldName, aliasName);
+			else
+				doImport(classPath, aliasName);
+			
 			return null;
 		}
 		return null;
+	}
+
+	function doImport(classPath:String, aliasName:String) {
+		var clEn:Dynamic = Type.resolveClass(classPath);
+		if (clEn == null)
+			clEn = Type.resolveEnum(classPath);
+		if (clEn == null) {
+			error(EInvalidType(classPath));
+			return;
+		}
+		variables.set(aliasName, clEn);
+	}
+
+	function doImportField(classPath:String, fieldName:String, aliasName:String) {
+		var cl = Type.resolveClass(classPath);
+		if (cl == null) {
+			error(EInvalidType(classPath));
+			return;
+		}
+		if (!Type.getClassFields(cl).contains(fieldName)) {
+			error(ECustom('Class $classPath does not define field $fieldName'));
+			return;
+		}
+		variables.set(aliasName, Reflect.getProperty(cl, fieldName));
+	}
+
+	function doImportFields(classPath:String) {
+		var cl = Type.resolveClass(classPath);
+		if (cl == null) {
+			error(EInvalidType(classPath));
+			return;
+		}
+		for (fieldName in Type.getClassFields(cl)) {
+			variables.set(fieldName, Reflect.getProperty(cl, fieldName));
+		}
 	}
 
 	function exprMeta(meta,args,e) : Dynamic {
