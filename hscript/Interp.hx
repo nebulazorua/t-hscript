@@ -140,7 +140,11 @@ class Interp {
 		assignOp("<<=",function(v1,v2) return v1 << v2);
 		assignOp(">>=",function(v1,v2) return v1 >> v2);
 		assignOp(">>>=",function(v1,v2) return v1 >>> v2);
-		binops.set("??=", function(e1, e2) return me.exprAssignValue(e1, me.expr(e1) ?? me.expr(e2)));
+		binops.set("??=", function(e1, e2) {
+			var v : Dynamic = me.expr(e1);
+			if( v == null ) v = me.expr(e2);
+			return me.exprAssignValue(e1, v);
+		});
 	}
 
 	function setVar( name : String, v : Dynamic ) {
@@ -612,7 +616,7 @@ class Interp {
 					return null;
 
 				case IAsName(alias): aliasName = alias;
-				case INormal: aliasName = fieldName ?? className;
+				case INormal: aliasName = if (fieldName != null) fieldName else className;
 			}
 			
 			if (fieldName != null)
