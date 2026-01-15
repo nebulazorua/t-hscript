@@ -150,6 +150,7 @@ class TestHScript extends TestCase {
 		var vars = {
 			ptnull : null,
 			pt: pt,
+			pt2null : {pt : null},
 			pt2: {pt : pt}
 		}
 		assertScript("ptnull?.x", null, vars);
