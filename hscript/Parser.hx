@@ -150,7 +150,8 @@ class Parser {
 	}
 
 	public function invalidChar(c) {
-		error(EInvalidChar(c), readPos-1, readPos-1);
+		var pos = currentPos - 1;
+		error(EInvalidChar(c), pos, pos);
 	}
 
 	function initParser( origin, pos ) {
@@ -290,6 +291,7 @@ class Parser {
 
 	function parseFullExpr( exprs : Array<Expr> ) {
 		var e = parseExpr();
+		if( e == null && resumeErrors ) return;
 		exprs.push(e);
 
 		var tk = token();
@@ -353,7 +355,7 @@ class Parser {
 			var e = parseStructure(id);
 			if( e == null )
 				e = mk(EIdent(id));
-			return parseExprNext(e);
+			return isBlock(e) ? e : parseExprNext(e);
 		case TConst(c):
 			return parseExprNext(mk(EConst(c)));
 		case TPOpen:
@@ -593,25 +595,48 @@ class Parser {
 				var ident = getIdent();
 				if( #if hscriptPos tokens.length != 0 #else !tokens.isEmpty() #end )
 					throw "assert";
-				if( readPos == start + ident.length + 1 ) {
+				if( ident != null && readPos == start + ident.length + 1 ) {
+					var startTag = "<"+ident;
 					var endTag = "</"+ident+">";
-					var end = input.indexOf(endTag, readPos);
-					if( end < 0 ) {
-						endTag = '/>';
-						end = input.indexOf(endTag, readPos);
+					var endTag2 = "/>";
+					var end = -1;
+					var count = 1, curPos = readPos;
+					var r_nextTag = ~/<[A-Za-z0-9_]+/;
+					while( count > 0 ) {
+						end = input.indexOf(endTag, curPos + 1);
+						if( end >= 0 )
+							end += endTag.length;
+						var end2 = input.indexOf(endTag2, curPos + 1);
+						if( end2 > 0 && (end < 0 || end2 < end) ) {
+							var nextTag = -1;
+							if( r_nextTag.matchSub(input, curPos+1) )
+								nextTag = r_nextTag.matchedPos().pos;
+							if( nextTag < 0 || end2 < nextTag )
+								end = end2 + endTag2.length;
+						}
+						if( end < 0 ) {
+							error(ECustom("Unclosed "+startTag+">"), curPos, curPos + startTag.length + 1);
+							return null;
+						}
+						var prev = input.indexOf(startTag, curPos + 1);
+						if( prev < 0 || prev > end ) {
+							count--;
+							curPos = end - 1;
+						} else {
+							count++;
+							curPos = prev;
+						}
 					}
-					if( end >= 0 ) {
-						readPos = end + endTag.length;
-						char = -1;
-						start--;
-						var end = readPos - 1;
-						#if hscriptPos
-						tokenMin = start + offset;
-						tokenMax = end + offset;
-						#end
-						var str = input.substr(start,end - start + 1);
-						return mk(EMeta(":markup",[],mk(EConst(CString(str)))));
-					}
+					readPos = end;
+					char = -1;
+					start--;
+					var end = readPos - 1;
+					#if hscriptPos
+					tokenMin = start + offset;
+					tokenMax = end + offset;
+					#end
+					var str = input.substr(start,end - start + 1);
+					return mk(EMeta(":markup",[],mk(EConst(CString(str)))));
 				}
 			}
 			return unexpected(tk);
@@ -631,10 +656,12 @@ class Parser {
 				}
 				first = false;
 				push(tk);
-				a.push(parseExpr());
+				var e = parseExpr();
+				if( e != null )
+					a.push(e);
 				tk = token();
 			}
-			if( a.length == 1 && a[0] != null )
+			if( a.length == 1 )
 				switch( expr(a[0]) ) {
 				case EFor(_), EWhile(_), EDoWhile(_):
 					var tmp = "__a_" + (uid++);
@@ -782,6 +809,7 @@ class Parser {
 			mk(EIf(cond,e1,e2),p1,(e2 == null) ? tokenMax : pmax(e2));
 		case "var", "final":
 			var ident = getIdent();
+			if( ident == null && resumeErrors ) return null;
 			var tk = token();
 			var t = null;
 			if( tk == TDoubleDot && allowTypes ) {
@@ -818,6 +846,7 @@ class Parser {
 		case "for":
 			ensure(TPOpen);
 			var eit = parseExpr();
+			if( eit == null && resumeErrors ) return null;
 			ensure(TPClose);
 			var e = parseExpr();
 			switch( expr(eit) ) {
@@ -851,22 +880,19 @@ class Parser {
 			var e = if( tk == TSemicolon ) null else parseExpr();
 			mk(EReturn(e),p1,if( e == null ) tokenMax else pmax(e));
 		case "new":
-			var a = new Array();
-			a.push(getIdent());
-			while( true ) {
-				var tk = token();
-				switch( tk ) {
-				case TDot:
-					a.push(getIdent());
-				case TPOpen:
-					break;
-				default:
-					unexpected(tk);
-					break;
-				}
+			var start = tokenMin;
+			var t = parseType();
+			switch( t ) {
+			case CTPath(path, params):
+				if( params != null && !allowTypes )
+					error(ECustom("Type parameters are not allowed"),start,tokenMax);
+				ensure(TPOpen);
+				var args = parseExprList(TPClose);
+				mk(ENew(path.join("."),args,params),p1);
+			default:
+				error(ECustom("Invalid type"),start,tokenMax);
+				null;
 			}
-			var args = parseExprList(TPClose);
-			mk(ENew(a.join("."),args),p1);
 		case "throw":
 			var e = parseExpr();
 			mk(EThrow(e),p1,pmax(e));
@@ -1067,7 +1093,7 @@ class Parser {
 				mk(ETernary(
 					mk(EBinop("==", mk(EIdent(tmp),pmin(e1),pmax(e1)), mk(EIdent("null"),pmin(e1),pmax(e1)))),
 					mk(EIdent("null"),pmin(e1),pmax(e1)),
-					e2,
+					e2
 				))
 			]),pmin(e1));
 			return parseExprNext(e, noOp);
@@ -1642,6 +1668,7 @@ class Parser {
 		while( true ) {
 			if( StringTools.isEof(char) ) {
 				this.char = char;
+				readPos--;
 				return TEof;
 			}
 			switch( char ) {
@@ -1790,6 +1817,7 @@ class Parser {
 						id += String.fromCharCode(char);
 					}
 				}
+				readPos--;
 				invalidChar(char);
 			case '#'.code:
 				char = readChar();
@@ -1804,6 +1832,7 @@ class Parser {
 						id += String.fromCharCode(char);
 					}
 				}
+				readPos--;
 				invalidChar(char);
 			default:
 				if( ops[char] ) {

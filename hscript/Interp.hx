@@ -52,6 +52,33 @@ class Interp {
 		initOps();
 	}
 
+	public function allowTypeResolve() {
+		variables.set("$resolve", resolveType);
+	}
+
+	#if js
+	static var ABS_CACHE = new Map();
+	#end
+	function resolveType( path : String ) : Dynamic {
+		#if js
+		// abstract type is not part of the class map
+		if( path.charCodeAt(0) == '#'.code ) {
+			var c = ABS_CACHE.get(path);
+			if( c != null ) return c;
+			c = js.Lib.eval(path.substr(1));
+			if( c != null ) {
+				ABS_CACHE.set(path,c);
+				return c;
+			}
+		}
+		#end
+		var c = std.Type.resolveClass(path);
+		if( c != null ) return c;
+		var e = std.Type.resolveEnum(path);
+		if( e != null ) return e;
+		throw "Invalid type "+path;
+	}
+
 	private function resetVariables(){
 		variables = new Map<String,Dynamic>();
 		variables.set("null",null);
