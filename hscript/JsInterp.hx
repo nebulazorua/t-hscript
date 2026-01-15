@@ -241,7 +241,7 @@ class JsInterp extends Interp {
 				default:
 					error(EInvalidOp("="));
 				}
-			case "+=","-=","*=","/=","%=","|=","&=","^=","<<=",">>=",">>>=":
+			case "+=","-=","*=","/=","%=","|=","&=","^=","<<=",">>=",">>>=","??=":
 				var aop = op.substr(0, op.length - 1);
 				switch( Tools.expr(e1) ) {
 				case EIdent(id) if( localNames.exists(id) ):

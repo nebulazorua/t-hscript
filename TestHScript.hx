@@ -168,6 +168,12 @@ class TestHScript extends TestCase {
 		assertScript("ptnull?.x ?? 12", 12, vars);
 		assertScript("pt?.x ?? 12", 10, vars);
 		assertScript("pt.y ?? 12", 12, vars);
+		assertScript("null ?? 1", 1);
+		assertScript("1 ?? 2", 1);
+		assertScript("var evaluated = false; 1 ?? {evaluated = true;}; evaluated", false);
+		assertScript("var foo = null; foo ??= 1; foo", 1);
+		assertScript("var foo = 1; foo ??= 2; foo", 1);
+		assertScript("var foo = 1; var evaluated = false; foo ??= {evaluated = true;}; evaluated", false);
 	}
 
 	function testIsOperator():Void {
