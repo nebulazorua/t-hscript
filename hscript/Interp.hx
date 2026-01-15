@@ -140,7 +140,7 @@ class Interp {
 		assignOp("<<=",function(v1,v2) return v1 << v2);
 		assignOp(">>=",function(v1,v2) return v1 >> v2);
 		assignOp(">>>=",function(v1,v2) return v1 >>> v2);
-		binops.set(#if cpp "??"+"=" #else "??=" #end, function(e1, e2) return me.exprAssignValue(e1, me.expr(e1) ?? me.expr(e2)));
+		binops.set("??=", function(e1, e2) return me.exprAssignValue(e1, me.expr(e1) ?? me.expr(e2)));
 	}
 
 	function setVar( name : String, v : Dynamic ) {
