@@ -141,9 +141,8 @@ class Interp {
 		assignOp(">>=",function(v1,v2) return v1 >> v2);
 		assignOp(">>>=",function(v1,v2) return v1 >>> v2);
 		binops.set("??=", function(e1, e2) {
-			var v : Dynamic = me.expr(e1);
-			if( v == null ) v = me.expr(e2);
-			return me.exprAssignValue(e1, v);
+			var v1 : Dynamic = me.expr(e1);
+			return if( v1 != null ) v1 else me.assign(e1, e2);
 		});
 	}
 
@@ -153,10 +152,7 @@ class Interp {
 	}
 
 	function assign( e1 : Expr, e2 : Expr ) : Dynamic {
-		return exprAssignValue(e1, expr(e2));
-	}
-
-	function exprAssignValue( e1 : Expr, v : Dynamic ) : Dynamic {
+		var v = expr(e2);
 		switch( Tools.expr(e1) ) {
 		case EIdent(id):
 			var l = locals.get(id);
